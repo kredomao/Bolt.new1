@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { X } from 'lucide-react';
-import { supabase, Todo } from '../lib/supabase';
+import { supabase, Todo, WeeklyPlan } from '../lib/supabase';
 
 interface TodoFormProps {
   todo: Todo | null;
   onClose: () => void;
+  weeklyPlans?: WeeklyPlan[];
 }
 
-export default function TodoForm({ todo, onClose }: TodoFormProps) {
+export default function TodoForm({ todo, onClose, weeklyPlans = [] }: TodoFormProps) {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [quadrant, setQuadrant] = useState<1 | 2 | 3 | 4>(3);
+  const [weeklyPlanId, setWeeklyPlanId] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -18,6 +23,8 @@ export default function TodoForm({ todo, onClose }: TodoFormProps) {
       setTitle(todo.title);
       setContent(todo.content);
       setDueDate(todo.due_date || '');
+      setQuadrant(todo.quadrant);
+      setWeeklyPlanId(todo.weekly_plan_id || '');
     }
   }, [todo]);
 
@@ -31,6 +38,8 @@ export default function TodoForm({ todo, onClose }: TodoFormProps) {
       title: title.trim(),
       content: content.trim(),
       due_date: dueDate || null,
+      quadrant,
+      weekly_plan_id: weeklyPlanId || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -47,7 +56,7 @@ export default function TodoForm({ todo, onClose }: TodoFormProps) {
         onClose();
       }
     } else {
-      const { error } = await supabase.from('todos').insert([todoData]);
+      const { error } = await supabase.from('todos').insert([{ ...todoData, user_id: user?.id }]);
 
       if (error) {
         console.error('Error creating todo:', error);
@@ -118,6 +127,45 @@ export default function TodoForm({ todo, onClose }: TodoFormProps) {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
           </div>
+
+          <div>
+            <label htmlFor="quadrant" className="block text-sm font-semibold text-gray-700 mb-2">
+              優先度（4象限マトリクス）
+            </label>
+            <select
+              id="quadrant"
+              value={quadrant}
+              onChange={(e) => setQuadrant(parseInt(e.target.value) as 1 | 2 | 3 | 4)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            >
+              <option value={1}>🔴 重要かつ緊急</option>
+              <option value={2}>🟢 重要だが緊急でない</option>
+              <option value={3}>🟡 緊急だが重要でない</option>
+              <option value={4}>⚫ 緊急でも重要でもない</option>
+            </select>
+          </div>
+
+          {weeklyPlans.length > 0 && (
+            <div>
+              <label htmlFor="weeklyPlanId" className="block text-sm font-semibold text-gray-700 mb-2">
+                関連する週間計画
+              </label>
+              <select
+                id="weeklyPlanId"
+                value={weeklyPlanId}
+                onChange={(e) => setWeeklyPlanId(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              >
+                <option value="">選択してください</option>
+                {weeklyPlans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {new Date(plan.week_start_date).toLocaleDateString('ja-JP')} 〜{' '}
+                    {new Date(plan.week_end_date).toLocaleDateString('ja-JP')} {plan.theme && `(${plan.theme})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4">
             <button
